@@ -221,6 +221,33 @@ final class PlayViewModel: NSObject, ObservableObject {
 
     // MARK: - Private
 
+    /// 按标题、年份、类型过滤搜索结果
+    private func filterSources(_ sources: [SearchResult]) -> [SearchResult] {
+        var filtered = sources
+
+        // 标题匹配
+        filtered = filtered.filter { videoTitle.matchesTitle($0.title) }
+
+        // 年份过滤：有年份信息时必须一致
+        if !videoYear.isEmpty {
+            let yearFiltered = filtered.filter { $0.year == videoYear }
+            if !yearFiltered.isEmpty {
+                filtered = yearFiltered
+            }
+        }
+
+        // 类型过滤：剧集(多集) vs 电影(单集)，基于当前源判断
+        if let current = currentSource {
+            let isTVSeries = current.episodes.count > 1
+            let typeFiltered = filtered.filter { isTVSeries == ($0.episodes.count > 1) }
+            if !typeFiltered.isEmpty {
+                filtered = typeFiltered
+            }
+        }
+
+        return filtered
+    }
+
     private func loadFromSource(source: String, id: String) {
         Task {
             do {
@@ -261,8 +288,9 @@ final class PlayViewModel: NSObject, ObservableObject {
             var result = await SourceSearchService.shared.searchAllSourcesSimple(query: searchQuery)
             print("[PlayVM] searchAndPlay 结果数=\(result.results.count), failures=\(result.failures.count)")
 
-            var matched = result.results.filter { videoTitle.matchesTitle($0.title) }
-            print("[PlayVM] searchAndPlay 标题匹配后=\(matched.count)")
+            // 按标题、年份、类型过滤
+            var matched = filterSources(result.results)
+            print("[PlayVM] searchAndPlay 过滤后=\(matched.count)")
 
             if matched.isEmpty && !result.results.isEmpty {
                 matched = result.results
@@ -497,7 +525,7 @@ final class PlayViewModel: NSObject, ObservableObject {
     private func searchOtherSources(title searchQuery: String, excludeSource: String, excludeId: String) async {
         let result = await SourceSearchService.shared.searchAllSourcesSimple(query: searchQuery)
 
-        let matched = result.results.filter { videoTitle.matchesTitle($0.title) }
+        let matched = filterSources(result.results)
         let otherSources = matched.filter { $0.source != excludeSource || $0.id != excludeId }
 
         DispatchQueue.main.async {

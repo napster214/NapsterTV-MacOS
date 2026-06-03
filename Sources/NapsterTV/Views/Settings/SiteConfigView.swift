@@ -46,12 +46,19 @@ struct SiteConfigView: View {
 
             // 保存按钮
             Section {
-                Button("保存") {
+                Button {
                     viewModel.saveConfig()
                     dismiss()
+                } label: {
+                    Text("保存配置")
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundColor(.white)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 12)
+                        .background(Color.themePrimary)
+                        .cornerRadius(10)
                 }
-                .frame(maxWidth: .infinity)
-                .font(.system(size: 16, weight: .medium))
+                .buttonStyle(.plain)
             }
         }
         .formStyle(.grouped)

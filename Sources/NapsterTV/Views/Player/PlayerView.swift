@@ -94,6 +94,7 @@ struct PlayerView: View {
             viewModel.initialize(source: source, id: id, title: title, year: year, searchTitle: searchTitle, prefer: prefer)
         }
         .onDisappear {
+            removeKeyboardMonitor()
             viewModel.player?.pause()
             viewModel.saveProgress()
             viewModel.stopProgressTimer()
@@ -103,29 +104,48 @@ struct PlayerView: View {
                 seekValue = newValue
             }
         }
-        // macOS 键盘快捷键
-        .onKeyPress(.space) {
-            viewModel.togglePlayPause()
-            return .handled
+        .onAppear {
+            setupKeyboardMonitor()
         }
-        .onKeyPress(.leftArrow) {
-            viewModel.seek(to: max(viewModel.currentTime - 10, 0))
-            return .handled
-        }
-        .onKeyPress(.rightArrow) {
-            viewModel.seek(to: min(viewModel.currentTime + 10, viewModel.totalDuration))
-            return .handled
-        }
-        .onKeyPress(characters: CharacterSet(charactersIn: "fF")) { _ in
-            toggleFullScreen()
-            return .handled
-        }
-        .onKeyPress(.escape) {
-            if isFullScreen {
-                exitFullScreen()
-                return .handled
+    }
+
+    // MARK: - 键盘监听
+
+    @State private var keyboardMonitor: Any?
+
+    private func setupKeyboardMonitor() {
+        keyboardMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
+            // 全屏窗口自己处理，这里不拦截
+            if FullScreenWindowManager.shared.window != nil { return event }
+            switch event.keyCode {
+            case 49: // 空格
+                viewModel.togglePlayPause()
+                return nil
+            case 123: // 左箭头
+                viewModel.seek(to: max(viewModel.currentTime - 15, 0))
+                return nil
+            case 124: // 右箭头
+                viewModel.seek(to: min(viewModel.currentTime + 15, viewModel.totalDuration))
+                return nil
+            case 3: // F 键
+                toggleFullScreen()
+                return nil
+            case 53: // ESC
+                if isFullScreen {
+                    exitFullScreen()
+                    return nil
+                }
+            default:
+                break
             }
-            return .ignored
+            return event
+        }
+    }
+
+    private func removeKeyboardMonitor() {
+        if let monitor = keyboardMonitor {
+            NSEvent.removeMonitor(monitor)
+            keyboardMonitor = nil
         }
     }
 
@@ -150,7 +170,9 @@ struct PlayerView: View {
         )
         let hostingView = NSHostingView(rootView: fullScreenView)
 
-        guard let screen = NSScreen.main else { return }
+        // 使用窗口实际所在的屏幕，而非主屏幕（支持外接显示器）
+        guard let currentWindow = NSApp.keyWindow ?? NSApp.mainWindow,
+              let screen = currentWindow.screen else { return }
         let window = FullScreenWindow(
             contentRect: screen.frame,
             styleMask: [.borderless],
@@ -166,6 +188,7 @@ struct PlayerView: View {
         window.makeKeyAndOrderFront(nil)
 
         FullScreenWindowManager.shared.window = window
+        FullScreenWindowManager.shared.viewModel = viewModel
         FullScreenWindowManager.shared.onExit = { [self] in
             self.isFullScreen = false
         }
@@ -293,6 +316,8 @@ struct PlayerView: View {
         }
     }
 
+    private let seekInterval: Double = 15
+
     private var playerControls: some View {
         VStack(spacing: 0) {
             HStack {
@@ -307,18 +332,48 @@ struct PlayerView: View {
 
             Spacer()
 
-            Button {
-                viewModel.togglePlayPause()
-                resetAutoHideTimer()
-            } label: {
-                Image(systemName: viewModel.isPlaying ? "pause.fill" : "play.fill")
-                    .font(.system(size: 28, weight: .bold))
-                    .foregroundStyle(.white)
-                    .frame(width: 58, height: 58)
-                    .background(Color.black.opacity(0.35))
-                    .clipShape(Circle())
+            HStack(spacing: 24) {
+                // 后退 15 秒
+                Button {
+                    viewModel.seek(to: viewModel.currentTime - seekInterval)
+                    resetAutoHideTimer()
+                } label: {
+                    Image(systemName: "backward.fill")
+                        .font(.system(size: 18, weight: .bold))
+                        .foregroundStyle(.white)
+                        .frame(width: 44, height: 44)
+                        .background(Color.black.opacity(0.35))
+                        .clipShape(Circle())
+                }
+                .buttonStyle(.plain)
+
+                Button {
+                    viewModel.togglePlayPause()
+                    resetAutoHideTimer()
+                } label: {
+                    Image(systemName: viewModel.isPlaying ? "pause.fill" : "play.fill")
+                        .font(.system(size: 28, weight: .bold))
+                        .foregroundStyle(.white)
+                        .frame(width: 58, height: 58)
+                        .background(Color.black.opacity(0.35))
+                        .clipShape(Circle())
+                }
+                .buttonStyle(.plain)
+
+                // 前进 15 秒
+                Button {
+                    viewModel.seek(to: viewModel.currentTime + seekInterval)
+                    resetAutoHideTimer()
+                } label: {
+                    Image(systemName: "forward.fill")
+                        .font(.system(size: 18, weight: .bold))
+                        .foregroundStyle(.white)
+                        .frame(width: 44, height: 44)
+                        .background(Color.black.opacity(0.35))
+                        .clipShape(Circle())
+                }
+                .buttonStyle(.plain)
             }
-            .buttonStyle(.plain)
 
             Spacer()
 
@@ -499,7 +554,7 @@ struct PlayerView: View {
             Text("简介")
                 .font(.system(size: 15, weight: .bold))
                 .foregroundColor(.themeText)
-            Text(desc)
+            Text(HTMLCleaner.clean(desc))
                 .font(.system(size: 14))
                 .foregroundColor(.themeTextSecondary)
         }
@@ -685,12 +740,14 @@ class FullScreenWindowManager {
     static let shared = FullScreenWindowManager()
     var window: NSWindow?
     var onExit: (() -> Void)?
+    weak var viewModel: PlayViewModel?
 
     func close() {
         window?.orderOut(nil)
         window = nil
         onExit?()
         onExit = nil
+        viewModel = nil
     }
 }
 
@@ -699,12 +756,22 @@ class FullScreenWindow: NSWindow {
     override var canBecomeMain: Bool { true }
 
     override func keyDown(with event: NSEvent) {
-        // ESC 键退出全屏
-        if event.keyCode == 53 {
+        switch event.keyCode {
+        case 53: // ESC 退出全屏
             FullScreenWindowManager.shared.close()
-            return
+        case 49: // 空格 播放/暂停
+            FullScreenWindowManager.shared.viewModel?.togglePlayPause()
+        case 123: // 左箭头 后退15秒
+            if let vm = FullScreenWindowManager.shared.viewModel {
+                vm.seek(to: max(vm.currentTime - 15, 0))
+            }
+        case 124: // 右箭头 前进15秒
+            if let vm = FullScreenWindowManager.shared.viewModel {
+                vm.seek(to: min(vm.currentTime + 15, vm.totalDuration))
+            }
+        default:
+            super.keyDown(with: event)
         }
-        super.keyDown(with: event)
     }
 }
 
@@ -820,11 +887,11 @@ struct FullScreenPlayerView: View {
             return .handled
         }
         .onKeyPress(.leftArrow) {
-            viewModel.seek(to: max(viewModel.currentTime - 10, 0))
+            viewModel.seek(to: max(viewModel.currentTime - 15, 0))
             return .handled
         }
         .onKeyPress(.rightArrow) {
-            viewModel.seek(to: min(viewModel.currentTime + 10, viewModel.totalDuration))
+            viewModel.seek(to: min(viewModel.currentTime + 15, viewModel.totalDuration))
             return .handled
         }
         .onKeyPress(characters: CharacterSet(charactersIn: "fF")) { _ in
@@ -864,19 +931,47 @@ struct FullScreenPlayerView: View {
 
             Spacer()
 
-            // 中间播放/暂停
-            Button {
-                viewModel.togglePlayPause()
-                resetAutoHideTimer()
-            } label: {
-                Image(systemName: viewModel.isPlaying ? "pause.fill" : "play.fill")
-                    .font(.system(size: 36, weight: .bold))
-                    .foregroundStyle(.white)
-                    .frame(width: 72, height: 72)
-                    .background(Color.black.opacity(0.35))
-                    .clipShape(Circle())
+            // 中间：后退 / 播放暂停 / 快进
+            HStack(spacing: 36) {
+                Button {
+                    viewModel.seek(to: viewModel.currentTime - 15)
+                    resetAutoHideTimer()
+                } label: {
+                    Image(systemName: "backward.fill")
+                        .font(.system(size: 24, weight: .bold))
+                        .foregroundStyle(.white)
+                        .frame(width: 56, height: 56)
+                        .background(Color.black.opacity(0.35))
+                        .clipShape(Circle())
+                }
+                .buttonStyle(.plain)
+
+                Button {
+                    viewModel.togglePlayPause()
+                    resetAutoHideTimer()
+                } label: {
+                    Image(systemName: viewModel.isPlaying ? "pause.fill" : "play.fill")
+                        .font(.system(size: 36, weight: .bold))
+                        .foregroundStyle(.white)
+                        .frame(width: 72, height: 72)
+                        .background(Color.black.opacity(0.35))
+                        .clipShape(Circle())
+                }
+                .buttonStyle(.plain)
+
+                Button {
+                    viewModel.seek(to: viewModel.currentTime + 15)
+                    resetAutoHideTimer()
+                } label: {
+                    Image(systemName: "forward.fill")
+                        .font(.system(size: 24, weight: .bold))
+                        .foregroundStyle(.white)
+                        .frame(width: 56, height: 56)
+                        .background(Color.black.opacity(0.35))
+                        .clipShape(Circle())
+                }
+                .buttonStyle(.plain)
             }
-            .buttonStyle(.plain)
 
             Spacer()
 

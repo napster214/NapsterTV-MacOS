@@ -24,14 +24,14 @@ struct ConfigView: View {
                             .foregroundColor(.white)
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 12)
-                            .background(Color.themeText)
+                            .background(Color.themePrimary)
                             .cornerRadius(10)
                     }
                     .buttonStyle(.plain)
                     .disabled(viewModel.isLoading)
                 }
                 .padding(16)
-                .background(Color.themeWhite)
+                .background(Color.themeCard)
                 .cornerRadius(12)
                 .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.themeBorder, lineWidth: 0.5))
 
@@ -50,7 +50,7 @@ struct ConfigView: View {
                         .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.themeBorder, lineWidth: 0.5))
                 }
                 .padding(16)
-                .background(Color.themeWhite)
+                .background(Color.themeCard)
                 .cornerRadius(12)
                 .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.themeBorder, lineWidth: 0.5))
 
@@ -73,7 +73,7 @@ struct ConfigView: View {
                         .foregroundColor(.white)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 14)
-                        .background(Color.themeText)
+                        .background(Color.themePrimary)
                         .cornerRadius(10)
                 }
                 .buttonStyle(.plain)
@@ -100,7 +100,7 @@ struct ConfigView: View {
                     .foregroundColor(.themeTextHint)
                 }
                 .padding(16)
-                .background(Color.themeWhite)
+                .background(Color.themeCard)
                 .cornerRadius(12)
                 .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.themeBorder, lineWidth: 0.5))
                 .padding(.horizontal, 16)

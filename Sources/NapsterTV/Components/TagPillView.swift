@@ -12,7 +12,7 @@ struct TagPillView: View {
                 .foregroundColor(isSelected ? .white : .themeText)
                 .padding(.horizontal, 16)
                 .padding(.vertical, 8)
-                .background(isSelected ? Color.themeText : Color.themeWhite)
+                .background(isSelected ? Color.themePrimary : Color.themeWhite)
                 .cornerRadius(20)
                 .overlay(
                     RoundedRectangle(cornerRadius: 20)

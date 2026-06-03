@@ -35,7 +35,7 @@ struct SourcesManageView: View {
                     .foregroundColor(.white)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 16)
-                    .background(Color.themeText)
+                    .background(Color.themePrimary)
                     .cornerRadius(12)
             }
             .buttonStyle(.plain)
@@ -144,7 +144,7 @@ struct SourcesManageView: View {
             .padding(.horizontal, 12)
             .padding(.vertical, 10)
         }
-        .background(Color.themeWhite)
+        .background(Color.themeCard)
         .cornerRadius(12)
         .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.themeBorder, lineWidth: 0.5))
     }

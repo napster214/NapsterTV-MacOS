@@ -2,6 +2,7 @@ import SwiftUI
 
 struct ContentView: View {
     @State private var selectedTab: Constants.Tab = .home
+    @State private var isFloating = false
 
     var body: some View {
         NavigationSplitView {
@@ -12,8 +13,29 @@ struct ContentView: View {
                 detailContent
                     .navigationDestination(for: Route.self, destination: routeDestination)
             }
+            .overlay(alignment: .topTrailing) {
+                Button {
+                    isFloating.toggle()
+                    applyFloating()
+                } label: {
+                    Image(systemName: isFloating ? "pin.fill" : "pin")
+                        .font(.system(size: 14))
+                        .foregroundColor(isFloating ? .themePrimary : .themeTextSecondary)
+                        .padding(8)
+                        .background(Color.themeCard.opacity(0.8))
+                        .clipShape(Circle())
+                }
+                .buttonStyle(.plain)
+                .help(isFloating ? "取消置顶" : "置顶窗口")
+                .padding(12)
+            }
         }
         .frame(minWidth: 900, minHeight: 600)
+        .onReceive(NotificationCenter.default.publisher(for: .floatingStateChanged)) { notification in
+            if let floating = notification.userInfo?["isFloating"] as? Bool {
+                isFloating = floating
+            }
+        }
     }
 
     // MARK: - Sidebar
@@ -45,6 +67,13 @@ struct ContentView: View {
         }
         .listStyle(.sidebar)
         .navigationTitle("NapsterTV")
+    }
+
+    private func applyFloating() {
+        guard let window = NSApp.mainWindow ?? NSApp.windows.first(where: { $0.isVisible && $0.title == "NapsterTV" }) else {
+            return
+        }
+        window.level = isFloating ? .floating : .normal
     }
 
     // MARK: - Detail Content
